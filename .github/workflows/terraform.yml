@@ -41,12 +41,15 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
+        working-directory: Environments/UAT
         run: terraform init
 
       - name: Terraform Validate
+        working-directory: Environments/UAT
         run: terraform validate
 
       - name: Terraform Plan
+        working-directory: Environments/UAT
         run: terraform plan -out=tfplan
 
       - name: Upload Terraform Plan
