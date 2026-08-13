@@ -88,4 +88,5 @@ jobs:
           path: Environments/UAT
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
+        working-directory: Environments/UAT
+        run: terraform apply -auto-approve tfplan 
