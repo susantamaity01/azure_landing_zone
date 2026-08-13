@@ -8,6 +8,9 @@ on:
     branches:
       - main
   workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
 
@@ -25,7 +28,7 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-
+          
       - name: Run tfsec
         uses: aquasecurity/tfsec-action@v1.0.3
         
@@ -67,12 +70,7 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
-        
-      - name: azure login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-          
+
       - name: Terraform Setup
         uses: hashicorp/setup-terraform@v3
 
