@@ -101,7 +101,6 @@ vm = {
     offer     = "0001-com-ubuntu-server-jammy"
     sku       = "22_04-lts"
     version   = "latest"
-    key_vault_name = "uatkv001123"
   }
   vm02 = {
     name                            = "linux02"
@@ -120,8 +119,6 @@ vm = {
     offer     = "0001-com-ubuntu-server-jammy"
     sku       = "22_04-lts"
     version   = "latest"
-    key_vault_name = "uatkv001123"
-
   }
 
 }
