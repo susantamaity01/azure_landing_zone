@@ -90,7 +90,7 @@ vm = {
     location                        = "central india"
     size                            = "Standard_D2as_v5"
     admin_username                  = "adminuser"
-    admin_password                  = "uatrg123456!"
+    admin_password                  = "abcd@12345"
     disable_password_authentication = false
     nic_name                        = "devops-nic01"
 
@@ -108,7 +108,7 @@ vm = {
     location                        = "central india"
     size                            = "Standard_D2as_v5"
     admin_username                  = "adminuser"
-    admin_password                  = "uatrg1234567"
+    admin_password                  = "uatrg@1234567"
     disable_password_authentication = false
     nic_name                        = "devops-nic02"
 
