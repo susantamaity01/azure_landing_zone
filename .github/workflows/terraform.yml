@@ -3,7 +3,7 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - main
+      - "**"
   pull_request:
     branches:
       - main
@@ -66,6 +66,8 @@ jobs:
     name: Deploy
     needs: scan-and-plan
     runs-on: ubuntu-latest
+    # Apply ONLY after push to main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     environment:
       name: production
