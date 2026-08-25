@@ -22,46 +22,46 @@ jobs:
 
     steps:
 
-      # Checkout source code
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: application/package-lock.json
 
-      # Install dependencies
       - name: Install dependencies
+        working-directory: application
         run: npm ci
 
-      # Run tests
       - name: Run tests
+        working-directory: application
         run: npm test -- --watchAll=false
         continue-on-error: true
 
-      # Build application
       - name: Build application
+        working-directory: application
         run: npm run build
 
-      # Upload build artifact
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-build
-          path: build/
+          path: application/build/
 
 
   # =========================
   # Stage 2: Deploy
   # =========================
   deploy:
-    name: Deploy Application
+    name: Deploy Application to VM
     needs: build
 
-    runs-on: ubuntu-latest
+    # IMPORTANT:
+    # This runner must have network access to the VM private IP.
+    runs-on: self-hosted
 
     # Deploy only after push to main
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -71,13 +71,68 @@ jobs:
 
     steps:
 
+      # Download build artifact
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           name: nodejs-build
           path: build
 
-      - name: Application deployment
+      # Setup SSH key
+      - name: Setup SSH
         run: |
-          echo "Build completed successfully."
-          echo "Add Azure App Service / Container deployment here."
+          mkdir -p ~/.ssh
+
+          echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/azure_vm_key
+
+          chmod 600 ~/.ssh/azure_vm_key
+
+          ssh-keyscan -H "${{ secrets.VM_HOST }}" >> ~/.ssh/known_hosts
+
+      # Test connection to VM
+      - name: Test VM connection
+        run: |
+          ssh \
+            -i ~/.ssh/azure_vm_key \
+            -o StrictHostKeyChecking=no \
+            azureuser@${{ secrets.VM_HOST }} \
+            "echo 'VM connection successful'"
+
+      # Prepare deployment directory
+      - name: Prepare VM
+        run: |
+          ssh \
+            -i ~/.ssh/azure_vm_key \
+            azureuser@${{ secrets.VM_HOST }} \
+            "sudo mkdir -p /var/www/reacttodo && \
+             sudo rm -rf /var/www/reacttodo/*"
+
+      # Copy build to VM
+      - name: Copy application
+        run: |
+          scp \
+            -i ~/.ssh/azure_vm_key \
+            -r build/* \
+            azureuser@${{ secrets.VM_HOST }}:/tmp/
+
+      # Deploy files
+      - name: Deploy application
+        run: |
+          ssh \
+            -i ~/.ssh/azure_vm_key \
+            azureuser@${{ secrets.VM_HOST }} \
+            "sudo cp -r /tmp/* /var/www/reacttodo/ && \
+             sudo chown -R www-data:www-data /var/www/reacttodo && \
+             sudo systemctl reload nginx"
+
+      # Verify deployment
+      - name: Verify Nginx
+        run: |
+          ssh \
+            -i ~/.ssh/azure_vm_key \
+            azureuser@${{ secrets.VM_HOST }} \
+            "sudo nginx -t && sudo systemctl is-active nginx"
+
+      - name: Deployment completed
+        run: |
+          echo "Application deployed successfully."
