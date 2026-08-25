@@ -88,7 +88,7 @@ jobs:
 
     # Self-hosted runner must have
     # private network access to the VM
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     # Deploy only after push to main
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
