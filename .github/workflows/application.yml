@@ -1,4 +1,4 @@
-name: Node.js Application CI/CD
+name: React Application CI/CD
 
 on:
   push:
@@ -13,54 +13,81 @@ on:
 
 jobs:
 
-  # =========================
+  # ==========================================
   # Stage 1: Build & Test
-  # =========================
+  # ==========================================
   build:
-    name: Build Application
+    name: Build React Application
     runs-on: ubuntu-latest
 
     steps:
 
+      # ----------------------------------------
+      # Checkout
+      # ----------------------------------------
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      # ----------------------------------------
+      # Setup Node.js
+      # ----------------------------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: application/package-lock.json
 
+      # ----------------------------------------
+      # Install dependencies
+      # ----------------------------------------
       - name: Install dependencies
         working-directory: application
         run: npm ci
 
+      # ----------------------------------------
+      # Fix CRA Babel dependency
+      # ----------------------------------------
+      - name: Install Babel compatibility dependency
+        working-directory: application
+        run: npm install --save-dev @babel/plugin-proposal-private-property-in-object
+
+      # ----------------------------------------
+      # Run tests
+      # ----------------------------------------
       - name: Run tests
         working-directory: application
         run: npm test -- --watchAll=false
         continue-on-error: true
 
+      # ----------------------------------------
+      # Build React application
+      # ----------------------------------------
       - name: Build application
         working-directory: application
+        env:
+          CI: true
         run: npm run build
 
+      # ----------------------------------------
+      # Upload production build
+      # ----------------------------------------
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nodejs-build
+          name: react-build
           path: application/build/
 
 
-  # =========================
-  # Stage 2: Deploy
-  # =========================
+  # ==========================================
+  # Stage 2: Deploy to Azure VM
+  # ==========================================
   deploy:
-    name: Deploy Application to VM
+    name: Deploy React Application to Azure VM
     needs: build
 
-    # IMPORTANT:
-    # This runner must have network access to the VM private IP.
+    # Self-hosted runner must have
+    # private network access to the VM
     runs-on: self-hosted
 
     # Deploy only after push to main
@@ -71,25 +98,39 @@ jobs:
 
     steps:
 
+      # ----------------------------------------
       # Download build artifact
+      # ----------------------------------------
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
-          name: nodejs-build
+          name: react-build
           path: build
 
+      # ----------------------------------------
       # Setup SSH key
+      # ----------------------------------------
       - name: Setup SSH
+        env:
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
 
-          echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/azure_vm_key
+          printf '%s\n' "$VM_SSH_KEY" > ~/.ssh/azure_vm_key
 
           chmod 600 ~/.ssh/azure_vm_key
 
-          ssh-keyscan -H "${{ secrets.VM_HOST }}" >> ~/.ssh/known_hosts
+      # ----------------------------------------
+      # Add VM to known hosts
+      # ----------------------------------------
+      - name: Add VM to known hosts
+        run: |
+          ssh-keyscan -H "${{ secrets.VM_HOST }}" \
+            >> ~/.ssh/known_hosts
 
-      # Test connection to VM
+      # ----------------------------------------
+      # Test VM connection
+      # ----------------------------------------
       - name: Test VM connection
         run: |
           ssh \
@@ -98,41 +139,54 @@ jobs:
             azureuser@${{ secrets.VM_HOST }} \
             "echo 'VM connection successful'"
 
+      # ----------------------------------------
       # Prepare deployment directory
-      - name: Prepare VM
+      # ----------------------------------------
+      - name: Prepare deployment directory
         run: |
           ssh \
             -i ~/.ssh/azure_vm_key \
             azureuser@${{ secrets.VM_HOST }} \
             "sudo mkdir -p /var/www/reacttodo && \
-             sudo rm -rf /var/www/reacttodo/*"
+             sudo rm -rf /var/www/reacttodo/* && \
+             rm -rf /tmp/reacttodo && \
+             mkdir -p /tmp/reacttodo"
 
-      # Copy build to VM
-      - name: Copy application
+      # ----------------------------------------
+      # Copy React build to VM
+      # ----------------------------------------
+      - name: Copy React build
         run: |
           scp \
             -i ~/.ssh/azure_vm_key \
             -r build/* \
-            azureuser@${{ secrets.VM_HOST }}:/tmp/
+            azureuser@${{ secrets.VM_HOST }}:/tmp/reacttodo/
 
-      # Deploy files
+      # ----------------------------------------
+      # Deploy files to Nginx directory
+      # ----------------------------------------
       - name: Deploy application
         run: |
           ssh \
             -i ~/.ssh/azure_vm_key \
             azureuser@${{ secrets.VM_HOST }} \
-            "sudo cp -r /tmp/* /var/www/reacttodo/ && \
+            "sudo cp -r /tmp/reacttodo/* /var/www/reacttodo/ && \
              sudo chown -R www-data:www-data /var/www/reacttodo && \
              sudo systemctl reload nginx"
 
+      # ----------------------------------------
       # Verify deployment
+      # ----------------------------------------
       - name: Verify Nginx
         run: |
           ssh \
             -i ~/.ssh/azure_vm_key \
             azureuser@${{ secrets.VM_HOST }} \
-            "sudo nginx -t && sudo systemctl is-active nginx"
+            "sudo nginx -t && \
+             sudo systemctl is-active nginx"
 
-      - name: Deployment completed
+      - name: Deployment successful
         run: |
-          echo "Application deployed successfully."
+          echo "======================================"
+          echo "Application deployed successfully!"
+          echo "======================================"
