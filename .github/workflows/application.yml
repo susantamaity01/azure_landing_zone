@@ -1,16 +1,13 @@
 name: React Application CI/CD
 
 on:
-  push:
-    branches:
-      - "**"
-
-  pull_request:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types:
+      - completed
 
   workflow_dispatch:
-
+  
 jobs:
 
   # ==========================================
@@ -19,7 +16,12 @@ jobs:
   build:
     name: Build React Application
     runs-on: ubuntu-latest
-
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
     steps:
 
       # ----------------------------------------
@@ -91,7 +93,12 @@ jobs:
     runs-on: ubuntu-latest
 
     # Deploy only after push to main
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
 
     environment:
       name: production
